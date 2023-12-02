@@ -1,51 +1,55 @@
 // @ts-nocheck
 
-const johnSelectorBtn = document.querySelector('#john-selector')
-const janeSelectorBtn = document.querySelector('#jane-selector')
+// Create a WebSocket connection
+const ws = new WebSocket('ws://localhost:3000/server')
+
+ws.onmessage = (event) => {
+  console.log('Message received from server')
+  const message = JSON.parse(event.data)
+  console.log(message)
+  chatMessages.innerHTML += createChatMessageElement(message)
+}
+
+const userInfoModal = document.querySelector('.user-info-modal')
+const userInfoForm = document.querySelector('.user-info-form')
+
 const chatHeader = document.querySelector('.chat-header')
 const chatMessages = document.querySelector('.chat-messages')
 const chatInputForm = document.querySelector('.chat-input-form')
 const chatInput = document.querySelector('.chat-input')
 const clearChatBtn = document.querySelector('.clear-chat-button')
 
-const messages = JSON.parse(localStorage.getItem('messages')) || []
+let messageSender = ''
+let chatCode = ''
 
 const createChatMessageElement = (message) => `
-  <div class="message ${message.sender === 'John' ? 'blue-bg' : 'gray-bg'}">
+  <div class="message ${message.sender === messageSender ? 'blue-bg' : 'gray-bg'}">
     <div class="message-sender">${message.sender}</div>
     <div class="message-text">${message.text}</div>
     <div class="message-timestamp">${message.timestamp}</div>
   </div>
 `
 
-window.onload = () => {
-  messages.forEach((message) => {
-    chatMessages.innerHTML += createChatMessageElement(message)
-  })
-}
-
-let messageSender = 'John'
-
-const updateMessageSender = (name) => {
+const updateMessageSender = (name, code) => {
   messageSender = name
-  chatHeader.innerText = `${messageSender} chatting...`
+  chatCode = code
+  chatHeader.innerText = `${name} chatting with code: ${code}`
   chatInput.placeholder = `Type here, ${messageSender}...`
-
-  if (name === 'John') {
-    johnSelectorBtn.classList.add('active-person')
-    janeSelectorBtn.classList.remove('active-person')
-  }
-  if (name === 'Jane') {
-    janeSelectorBtn.classList.add('active-person')
-    johnSelectorBtn.classList.remove('active-person')
-  }
 
   /* auto-focus the input field */
   chatInput.focus()
 }
 
-johnSelectorBtn.onclick = () => updateMessageSender('John')
-janeSelectorBtn.onclick = () => updateMessageSender('Jane')
+userInfoForm.addEventListener('submit', (e) => {
+  e.preventDefault()
+  const username = e.target.username.value
+  const chatCode = e.target.chatCode.value
+
+  updateMessageSender(username, chatCode)
+
+  ws.send(JSON.stringify({ type: 'join', chatCode }))
+  userInfoModal.style.display = 'none'
+})
 
 const sendMessage = (e) => {
   e.preventDefault()
@@ -55,19 +59,16 @@ const sendMessage = (e) => {
     sender: messageSender,
     text: chatInput.value,
     timestamp,
+    chatCode,
   }
 
-  /* Save message to local storage */
-  messages.push(message)
-  localStorage.setItem('messages', JSON.stringify(messages))
+  // Send message through WebSocket
+  ws.send(JSON.stringify(message))
 
-  /* Add message to DOM */
-  chatMessages.innerHTML += createChatMessageElement(message)
-
-  /* Clear input field */
+  // Clear input field
   chatInputForm.reset()
 
-  /*  Scroll to bottom of chat messages */
+  // Scroll to bottom of chat messages
   chatMessages.scrollTop = chatMessages.scrollHeight
 }
 
